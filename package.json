@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-bridge",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Session bridge for DeepSeek Harness: project-grouped session manager (batch export/import, preview, duplicate audit, trash, move between projects) and import from Claude Code, Codex, zcode, opencode, Goose, Zed, Vibe. | 会话桥：按 project 分组的会话管理（批量导入导出 / 预览 / 去重 / 回收站 / 移动归属）+ 多 Agent 来源导入。",
   "license": "MIT",

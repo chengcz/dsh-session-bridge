@@ -78,7 +78,6 @@ assert.deepEqual(names, [
   'main#session-bridge',
   'settings.section#session-bridge',
   'sidebar.panellist#session-bridge',
-  'sidebar.workspaces.session.row.action#session-bridge.drag',
   'sidebar.workspaces.session.row.action#session-bridge.export',
   'sidebar.workspaces.session.row.action#session-bridge.move',
 ], 'all UI mount points must be registered: ' + names)
@@ -132,7 +131,7 @@ const icon = bySlot('sidebar.panellist').Component({ size: 16 })
 assert.equal(icon.type, 'svg', 'sidebar entry must render an svg icon')
 
 const rowSlots = slots.filter((entry) => entry.slot.name === 'sidebar.workspaces.session.row.action')
-assert.equal(rowSlots.length, 3, 'row actions: export + move + drag handle')
+assert.equal(rowSlots.length, 2, 'row actions: export + move (click opens picker, drag moves)')
 const exportSlot = rowSlots.find((entry) => entry.slot.id === 'session-bridge.export')
 assert.equal(exportSlot.Component({ sessionId: 'demo' }).type, 'button', 'export row action renders a button')
 
@@ -142,7 +141,8 @@ const moveNode = moveSlot.Component({ sessionId: 'demo', displayTitle: 'demo' })
 assert.equal(moveNode.type, 'span')
 const moveButton = moveNode.children.find((child) => child && child.type === 'button')
 assert.ok(moveButton, 'move row action must render a button')
-assert.equal(typeof moveButton.props.onClick, 'function')
+assert.equal(typeof moveButton.props.onPointerDown, 'function', 'drag starts from pointer events')
+assert.equal(moveButton.props.draggable, undefined, 'do not rely on HTML5 draggable on a <button>')
 
 // 确认流程不能依赖 window.confirm：宿主环境里它可能被禁用并恒定返回 false，
 // 表现为「点了按钮没反应」——这正是之前「移入回收站 / 全部处理」的症状。

@@ -56,8 +56,12 @@ bundle、interchange 文档、JSONL，还是由本插件导入生成的会话，
 或填绝对路径）、`⠿` **直接拖到左侧任意 project 分组上**完成移动。
 
 > 宿主的行拖拽只做「同组内排序」（`commitSessionDrag` 只在同组内算新顺序），没有跨组移动，
-> 所以这里用行内手柄发起拖拽：`data-row-key="workspace:<id>"` 认出目标分组，再用
-> workspaceId 换回 cwd。认不出分组（例如「未分组」或注册表不可用）就什么都不做。
+> 所以跨组移动由本插件自己发起。**不用 HTML5 dragstart**：`<button>` 作为拖拽源在 Chromium 里
+> 不可靠，而宿主的会话行本身也是 `draggable`，很容易抢走拖拽源（实测「拖不动」）。改成
+> pointer 事件实现：移动超过 5px 才算拖动，跟随提示显示当前命中的分组，松手时用
+> `elementFromPoint` 命中 `data-row-key="workspace:<id>"`，再用 workspaceId 换回 cwd。
+> 认不出分组（例如「未分组」或注册表不可用）就什么都不做，不猜。单击同一个图标仍可打开
+> project 选择弹层。
 
 - **会话**：按 **project（cwd）分组**显示，组头有该组数量和「全选」；搜索（标题 / id）、筛选
   （全部 / 只看导入的 / 只看非导入的）、全选与勾选、批量导出（格式可选）、批量移入回收站、

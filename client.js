@@ -1461,148 +1461,55 @@ window.__ModuleLoader__.load({
       h('path', { d: 'M3 11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5' }))
     }
 
-    // 侧栏动作：会话行 hover 时的「拖到别的 project 分组上」。
+    // 侧栏动作：会话行的「移动」——点击开弹层选 project，按住拖动则直接拖到目标分组上。
     //
-    // 宿主自己的行拖拽只做「同组内排序」，没有跨组移动，所以这里给行加一个可拖拽手柄：
-    //   dragstart  记下 sessionId（并阻止冒泡，避免触发宿主的行拖拽）
-    //   document   capture 阶段接 dragover/drop，用 [data-row-key="workspace:<id>"] 认目标分组
-    //   drop       拿 workspaceId 换回 cwd（走 /projects），再调 /session/move
-    // 认不出目标分组（例如「未分组」或注册表不可用）就什么都不做，不猜。
-    function RowDragHandle(props) {
-      useLocaleVersion()
-      const [state, setState] = React.useState('idle')
-      const activeRef = React.useRef(null)
-
-      React.useEffect(() => {
-        const rowKeyAt = (event) => {
-          const node = event && event.target
-          if (!node || typeof node.closest !== 'function') return ''
-          const row = node.closest('[data-row-key]')
-          return row ? String(row.getAttribute('data-row-key') || '') : ''
-        }
-
-        const onDragOver = (event) => {
-          if (!activeRef.current) return
-          const key = rowKeyAt(event)
-          if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = key.startsWith('workspace:') ? 'move' : 'none'
-          }
-        }
-
-        const onDrop = async (event) => {
-          const current = activeRef.current
-          if (!current) return
-          activeRef.current = null
-          const key = rowKeyAt(event)
-          if (!key.startsWith('workspace:')) return
-          const workspaceId = key.slice('workspace:'.length)
-          if (!workspaceId) return
-          if (typeof event.preventDefault === 'function') event.preventDefault()
-          if (typeof event.stopPropagation === 'function') event.stopPropagation()
-          setState('busy')
-          try {
-            const data = await post('/api-session-bridge/projects')
-            const project = (Array.isArray(data.projects) ? data.projects : [])
-              .find((item) => item && item.id === workspaceId && item.cwd)
-            if (!project) {
-              setState('idle')
-              return
-            }
-            await post('/api-session-bridge/session/move', {
-              sessionId: current.sessionId,
-              cwd: project.cwd,
-            })
-            setState('done')
-            setTimeout(() => setState('idle'), 1400)
-          } catch {
-            setState('error')
-            setTimeout(() => setState('idle'), 2200)
-          }
-        }
-
-        document.addEventListener('dragover', onDragOver, true)
-        document.addEventListener('drop', onDrop, true)
-        return () => {
-          document.removeEventListener('dragover', onDragOver, true)
-          document.removeEventListener('drop', onDrop, true)
-        }
-      }, [])
-
-      const onDragStart = (event) => {
-        // 阻止冒泡：不触发宿主的「同组内排序」拖拽
-        if (event && typeof event.stopPropagation === 'function') event.stopPropagation()
-        activeRef.current = { sessionId: String(props.sessionId || '') }
-        try {
-          event.dataTransfer.effectAllowed = 'move'
-          event.dataTransfer.setData('application/x-dsh-session-bridge', String(props.sessionId || ''))
-        } catch {
-          // dataTransfer 不可写时不致命：目标识别只依赖 activeRef
-        }
-      }
-
-      const label = state === 'done' ? '✓' : state === 'error' ? '!' : '⠿'
-      const title = state === 'done'
-        ? translate('move.dragDone')
-        : (state === 'error'
-          ? translate('move.dragFailed')
-          : translate('move.dragHint') + ' · ' + (props.displayTitle || props.sessionId || ''))
-      return h('button', {
-        type: 'button',
-        draggable: true,
-        title,
-        onDragStart,
-        onDragEnd: () => { activeRef.current = null },
-        onClick: (event) => { if (event && typeof event.stopPropagation === 'function') event.stopPropagation() },
-        style: {
-          width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          border: 'none', borderRadius: '6px', background: 'transparent', cursor: 'grab', padding: 0,
-          color: state === 'error'
-            ? 'var(--dsw-alias-state-error-primary, #d93838)'
-            : 'var(--dsw-alias-label-tertiary, #8a939c)',
-          fontSize: '12px', lineHeight: 1,
-        },
-      }, label)
-    }
-
-    // 侧栏动作：会话行 hover 时的「移动到另一个 project」。
-    // 不打开管理页，直接在行上弹出目标选择；所有点击都 stopPropagation，
-    // 否则会冒泡到行本身把会话切换掉。
-    function RowMoveButton(props) {
+    // 不用 HTML5 dragstart：`<button>` 作为拖拽源在 Chromium 里并不可靠，而且宿主的会话行
+    // 自己也是 draggable，容易抢走拖拽源。这里用 pointer 事件自己实现：移动超过 5px 才算
+    // 拖动，松手时用 elementFromPoint 命中 `[data-row-key="workspace:<id>"]` 认出目标分组。
+    function RowMoveControl(props) {
       useLocaleVersion()
       const [open, setOpen] = React.useState(false)
       const [cwd, setCwd] = React.useState('')
       const [projects, setProjects] = React.useState([])
       const [busy, setBusy] = React.useState(false)
       const [note, setNote] = React.useState('')
+      const [phase, setPhase] = React.useState('idle')
+      const [tip, setTip] = React.useState(null)
+      const projectsRef = React.useRef([])
 
       const stop = (event) => { if (event && typeof event.stopPropagation === 'function') event.stopPropagation() }
 
-      const openDialog = async (event) => {
-        stop(event)
-        setNote('')
-        setOpen(true)
-        setCwd('')
+      const loadProjects = async () => {
         try {
-          const [projectData, listData] = await Promise.all([
-            post('/api-session-bridge/projects'),
-            post('/api-session-bridge/list'),
-          ])
-          setProjects(Array.isArray(projectData.projects) ? projectData.projects : [])
-          const current = (Array.isArray(listData.sessions) ? listData.sessions : [])
-            .find((session) => session.id === props.sessionId)
-          if (current && current.cwd) setCwd(current.cwd)
-        } catch (error) {
-          setNote(String((error && error.message) || error))
+          const data = await post('/api-session-bridge/projects')
+          const list = Array.isArray(data.projects) ? data.projects : []
+          projectsRef.current = list
+          setProjects(list)
+          return list
+        } catch {
+          projectsRef.current = []
+          return []
         }
       }
 
-      const close = (event) => {
-        stop(event)
-        setOpen(false)
+      const openDialog = async () => {
         setNote('')
+        setOpen(true)
+        setCwd('')
+        await loadProjects()
+        try {
+          const data = await post('/api-session-bridge/list')
+          const current = (Array.isArray(data.sessions) ? data.sessions : [])
+            .find((session) => session.id === props.sessionId)
+          if (current && current.cwd) setCwd(current.cwd)
+        } catch {
+          // 拉不到当前 cwd 就让用户自己填
+        }
       }
 
-      const run = async (event) => {
+      const close = (event) => { stop(event); setOpen(false); setNote('') }
+
+      const runDialogMove = async (event) => {
         stop(event)
         const target = cwd.trim()
         if (!target) return
@@ -1619,19 +1526,112 @@ window.__ModuleLoader__.load({
         }
       }
 
+      const projectAt = (x, y) => {
+        let node = null
+        try {
+          node = document.elementFromPoint(x, y)
+        } catch {
+          node = null
+        }
+        const row = node && typeof node.closest === 'function' ? node.closest('[data-row-key]') : null
+        const key = row ? String(row.getAttribute('data-row-key') || '') : ''
+        if (!key.startsWith('workspace:')) return null
+        const workspaceId = key.slice('workspace:'.length)
+        if (!workspaceId) return null
+        return projectsRef.current.find((item) => item && item.id === workspaceId && item.cwd) || null
+      }
+
+      const onPointerDown = (event) => {
+        if (event.button !== 0) return
+        stop(event)
+        if (typeof event.preventDefault === 'function') event.preventDefault()
+        const startX = event.clientX
+        const startY = event.clientY
+        let dragging = false
+        void loadProjects()
+
+        const onMove = (moveEvent) => {
+          if (!dragging && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 5) {
+            dragging = true
+            setPhase('dragging')
+            document.body.style.cursor = 'grabbing'
+          }
+          if (!dragging) return
+          const project = projectAt(moveEvent.clientX, moveEvent.clientY)
+          setTip({
+            x: moveEvent.clientX,
+            y: moveEvent.clientY,
+            label: project ? project.cwd : translate('move.dragHint'),
+            ok: Boolean(project),
+          })
+        }
+
+        const onUp = async (upEvent) => {
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.body.style.cursor = ''
+          setTip(null)
+          if (!dragging) {
+            setPhase('idle')
+            await openDialog()
+            return
+          }
+          const project = projectAt(upEvent.clientX, upEvent.clientY)
+          if (!project) {
+            setPhase('idle')
+            return
+          }
+          setPhase('busy')
+          try {
+            await post('/api-session-bridge/session/move', { sessionId: props.sessionId, cwd: project.cwd })
+            setPhase('done')
+            setTimeout(() => setPhase('idle'), 1200)
+          } catch {
+            setPhase('error')
+            setTimeout(() => setPhase('idle'), 1800)
+          }
+        }
+
+        document.addEventListener('pointermove', onMove)
+        document.addEventListener('pointerup', onUp)
+      }
+
+      const label = phase === 'done' ? '✓' : phase === 'error' ? '!' : (phase === 'dragging' ? '↘' : '⠿')
       const iconStyle = {
         width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        border: 'none', borderRadius: '6px', background: 'transparent', cursor: 'pointer',
-        color: 'var(--dsw-alias-label-secondary, #5b6570)', fontSize: '13px', lineHeight: 1, padding: 0,
+        border: 'none', borderRadius: '6px', background: 'transparent', padding: 0,
+        cursor: phase === 'dragging' ? 'grabbing' : 'grab', fontSize: '12px', lineHeight: 1,
+        color: phase === 'error'
+          ? 'var(--dsw-alias-state-error-primary, #d93838)'
+          : 'var(--dsw-alias-label-tertiary, #8a939c)',
+      }
+      const btnStyle = {
+        height: '30px', padding: '0 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px',
+        border: '1px solid var(--dsw-alias-border-l1, #e5e7eb)',
+        background: 'var(--dsw-alias-bg-layer-2, #f2f3f5)', color: 'inherit',
       }
 
       return h('span', { style: { display: 'inline-flex' } },
         h('button', {
           type: 'button',
           title: translate('move.rowTitle') + ' · ' + (props.displayTitle || props.sessionId || ''),
-          onClick: openDialog,
+          onPointerDown,
+          onClick: (event) => { stop(event); if (typeof event.preventDefault === 'function') event.preventDefault() },
           style: iconStyle,
-        }, '⇥'),
+        }, label),
+        tip
+          ? h('div', {
+            style: {
+              position: 'fixed', left: (tip.x + 12) + 'px', top: (tip.y + 12) + 'px', zIndex: 10000,
+              pointerEvents: 'none', padding: '6px 10px', borderRadius: '8px', fontSize: '12px',
+              maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              background: 'var(--dsw-alias-bg-layer-1, #fff)', color: 'var(--dsw-alias-label-primary, #1f2328)',
+              border: '1px solid ' + (tip.ok
+                ? 'var(--dsw-alias-state-business-primary, #2f6fed)'
+                : 'var(--dsw-alias-border-l1, #e5e7eb)'),
+            },
+          }, tip.label)
+          : null,
         open
           ? h('div', {
             style: {
@@ -1653,9 +1653,7 @@ window.__ModuleLoader__.load({
           props.displayTitle
             ? h('div', { style: { fontSize: '12px', opacity: .7 } }, props.displayTitle)
             : null,
-          cwd
-            ? h('div', { style: { fontSize: '12px', opacity: .7 } }, translate('move.current', { cwd }))
-            : null,
+          cwd ? h('div', { style: { fontSize: '12px', opacity: .7 } }, translate('move.current', { cwd })) : null,
           h('input', {
             style: {
               height: '32px', padding: '0 10px', borderRadius: '8px', fontSize: '13px',
@@ -1693,30 +1691,18 @@ window.__ModuleLoader__.load({
               h('button', {
                 type: 'button',
                 onClick: (event) => { stop(event); setCwd(project.cwd) },
-                style: {
-                  height: '24px', padding: '0 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
-                  border: '1px solid var(--dsw-alias-border-l1, #e5e7eb)',
-                  background: 'var(--dsw-alias-bg-layer-2, #f2f3f5)', color: 'inherit',
-                },
+                style: btnStyle,
               }, translate('move.pick')))))
             : null,
           note ? h('div', { style: { fontSize: '12px' } }, note) : null,
           h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
-            h('button', {
-              type: 'button',
-              onClick: close,
-              style: {
-                height: '30px', padding: '0 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px',
-                border: '1px solid var(--dsw-alias-border-l1, #e5e7eb)',
-                background: 'var(--dsw-alias-bg-layer-2, #f2f3f5)', color: 'inherit',
-              },
-            }, translate('move.cancel')),
+            h('button', { type: 'button', onClick: close, style: btnStyle }, translate('move.cancel')),
             h('button', {
               type: 'button',
               disabled: busy || !cwd.trim(),
-              onClick: run,
+              onClick: runDialogMove,
               style: {
-                height: '30px', padding: '0 14px', borderRadius: '8px', fontSize: '13px',
+                ...btnStyle,
                 cursor: busy || !cwd.trim() ? 'default' : 'pointer',
                 border: '1px solid var(--dsw-alias-label-primary, #1f2328)',
                 background: 'var(--dsw-alias-label-primary, #1f2328)',
@@ -1724,7 +1710,7 @@ window.__ModuleLoader__.load({
                 opacity: busy || !cwd.trim() ? .55 : 1,
               },
             }, busy ? translate('move.busy') : translate('move.action')))))
-        : null)
+          : null)
     }
 
     // 侧栏动作：会话行 hover 时一键把这条会话导出成 bundle。
@@ -1817,19 +1803,12 @@ window.__ModuleLoader__.load({
         order: 300,
       }, RowExportButton))
 
-      // 会话行 hover 的「移动到另一个 project」
+      // 会话行：点击开弹层选 project，按住拖动直接换 project
       ctx.slots.inject('sidebar.workspaces.session.row.action', () => ctx.slots.register({
         name: 'sidebar.workspaces.session.row.action',
         id: 'session-bridge.move',
         order: 301,
-      }, RowMoveButton))
-
-      // 会话行 hover 的拖拽手柄：拖到左侧 project 分组上即移动
-      ctx.slots.inject('sidebar.workspaces.session.row.action', () => ctx.slots.register({
-        name: 'sidebar.workspaces.session.row.action',
-        id: 'session-bridge.drag',
-        order: 302,
-      }, RowDragHandle))
+      }, RowMoveControl))
     }
 
     return { name: 'dsh-session-bridge', inject: ['slots', 'locale'], apply }
