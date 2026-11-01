@@ -1,0 +1,5 @@
+node_modules/
+*.log
+.DS_Store
+# DSH 运行时产物（不在仓库内，防误提交）
+*.dshbundle.json

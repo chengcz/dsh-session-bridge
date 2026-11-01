@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Session Bridge",
+    "description": "Export a DeepSeek Harness session history to a file, import from files or from Claude Code / Codex, all through a graphical manager in the sidebar. Imports are keyed by a content fingerprint, so the same conversation is never imported twice."
+  }
+}

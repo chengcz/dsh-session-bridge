@@ -1,0 +1,5 @@
+# dsh-session-bridge — 会话桥
+# 一个 bundle 只插入一个 host 行；客户端半由同一包的 dsh.client 声明承载。
+- insert:
+    - id: session-bridge
+      name: dsh-session-bridge

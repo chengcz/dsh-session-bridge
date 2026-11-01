@@ -1,0 +1,25 @@
+{"version":4,"id":"bridge-interchange-demo","createdAt":1793438103431,"cwd":"/Users/chengchaoze/Documents/deepseek-harness/default-workspace","isSeeded":false,"delegationDepth":0}
+{"type":"turn/start","seq":0,"time":1793438103431,"data":{"turn":1}}
+{"type":"step/start","seq":1,"time":1793438103431,"data":{"turn":1,"step":1}}
+{"type":"system/message","seq":2,"time":1793438103431,"data":{"turn":1,"step":1,"message":{"id":"bridge:bridge-interchange-demo:sys","role":"system","content":[],"source":{"kind":"system-prompt"}}},"surfaceOp":"append"}
+{"type":"user/message","seq":3,"time":1793438103431,"data":{"id":"bridge:bridge-interchange-demo:env","role":"user","content":[{"type":"text","text":"<system-reminder>\nEnvironment change notice: this session was migrated from demo to DeepSeek Harness (DSH). The current runtime environment, available tool list, permissions, and execution instructions are all governed by the current DSH session; do not reuse tool names, commands, or environment conventions from the source environment.\n</system-reminder>"}],"source":{"kind":"plugin:dsh-session-bridge"}},"surfaceOp":"append"}
+{"type":"user/message","seq":4,"time":1793438103431,"data":{"id":"bridge:bridge-interchange-demo:u1","role":"user","content":[{"type":"text","text":"帮我看一下 README 的第一行"}],"source":{"kind":"user"}},"surfaceOp":"append"}
+{"type":"assistant/message","seq":5,"time":1793438103431,"data":{"turn":1,"step":1,"stream":[],"usage":{"inputTokens":120,"outputTokens":30},"message":{"id":"bridge:bridge-interchange-demo:a1:1","role":"assistant","content":[{"type":"reasoning","text":"先读文件"},{"type":"text","text":"我读一下。"},{"type":"tool-call","id":"call-read-1","name":"read","arguments":"{\"path\":\"README.md\",\"limit\":1}"}],"source":{"kind":"model","provider":"demo","model":"demo-model"}}},"surfaceOp":"append"}
+{"type":"tool/call","seq":6,"time":1793438103431,"data":{"turn":1,"step":1,"callId":"call-read-1","name":"read","arguments":"{\"path\":\"README.md\",\"limit\":1}"}}
+{"type":"tool/result","seq":7,"time":1793438103431,"data":{"turn":1,"step":1,"message":{"id":"bridge:bridge-interchange-demo:t1:1:call-read-1","role":"tool","content":[{"type":"text","text":"# dsh-session-bridge · 会话桥"}],"source":{"kind":"tool","callId":"call-read-1"},"toolCallId":"call-read-1"}},"surfaceOp":"append","sourceEventSeqs":[6]}
+{"type":"step/end","seq":8,"time":1793438103431,"data":{"turn":1,"step":1}}
+{"type":"step/start","seq":9,"time":1793438103431,"data":{"turn":1,"step":2}}
+{"type":"assistant/message","seq":10,"time":1793438103431,"data":{"turn":1,"step":2,"stream":[],"message":{"id":"bridge:bridge-interchange-demo:a1:2","role":"assistant","content":[{"type":"text","text":"第一行是标题「dsh-session-bridge · 会话桥」。"}],"source":{"kind":"model","provider":"demo","model":"demo-model"}}},"surfaceOp":"append"}
+{"type":"step/end","seq":11,"time":1793438103431,"data":{"turn":1,"step":2}}
+{"type":"turn/end","seq":12,"time":1793438103431,"data":{"turn":1,"reason":{"kind":"completed"}}}
+{"type":"turn/start","seq":13,"time":1793438103431,"data":{"turn":2}}
+{"type":"step/start","seq":14,"time":1793438103431,"data":{"turn":2,"step":1}}
+{"type":"user/message","seq":15,"time":1793438103431,"data":{"id":"bridge:bridge-interchange-demo:u2","role":"user","content":[{"type":"text","text":"谢谢，顺便看一下 LICENSE 的类型"}],"source":{"kind":"user"}},"surfaceOp":"append"}
+{"type":"assistant/message","seq":16,"time":1793438103431,"data":{"turn":2,"step":1,"stream":[],"message":{"id":"bridge:bridge-interchange-demo:a2:1","role":"assistant","content":[{"type":"text","text":"是 MIT。"}],"source":{"kind":"model","provider":"demo","model":"demo-model"}}},"surfaceOp":"append"}
+{"type":"step/end","seq":17,"time":1793438103431,"data":{"turn":2,"step":1}}
+{"type":"turn/end","seq":18,"time":1793438103431,"data":{"turn":2,"reason":{"kind":"completed"}}}
+{"type":"session/title","seq":19,"time":1793438103431,"data":{"title":"会话桥 · interchange 导入演示","messageSeqs":[],"source":{"kind":"user"}}}
+{"type":"session/end-seed","seq":20,"time":1793438103432,"data":{}}
+{"type":"permission/preset","seq":21,"time":1793438103447,"data":{"preset":"workspace-write"}}
+{"type":"sandbox/mode","seq":22,"time":1793438103447,"data":{"mode":"workspace-write"}}
+{"type":"approval/policy","seq":23,"time":1793438103447,"data":{"policy":"ask"}}

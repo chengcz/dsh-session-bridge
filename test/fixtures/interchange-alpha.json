@@ -1,0 +1,12 @@
+{
+  "interchange": "dsh-chat-import",
+  "version": 1,
+  "title": "批量导入 alpha",
+  "provider": "claude",
+  "model": "claude-sonnet-4",
+  "meta": { "cwd": "/tmp/batch-demo" },
+  "turns": [
+    { "prompt": "alpha 会话的第一问", "steps": [ { "content": [ { "type": "text", "text": "alpha 的第一答" } ] } ] },
+    { "prompt": "alpha 会话的第二问", "steps": [ { "content": [ { "type": "text", "text": "alpha 的第二答" } ] } ] }
+  ]
+}

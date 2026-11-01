@@ -1,0 +1,39 @@
+{
+  "interchange": "dsh-chat-import",
+  "version": 1,
+  "meta": { "id": "demo-bridge-interchange", "createdAt": 1767224650000, "cwd": "/Users/chengchaoze/Documents/deepseek-harness/default-workspace" },
+  "title": "会话桥 · interchange 导入演示",
+  "provider": "demo",
+  "model": "demo-model",
+  "turns": [
+    {
+      "prompt": "帮我看一下 README 的第一行",
+      "steps": [
+        {
+          "content": [
+            { "type": "reasoning", "text": "先读文件" },
+            { "type": "text", "text": "我读一下。" }
+          ],
+          "toolCalls": [{ "id": "call-read-1", "name": "read", "arguments": "{\"path\":\"README.md\",\"limit\":1}" }],
+          "toolResults": [{ "toolCallId": "call-read-1", "content": [{ "type": "text", "text": "# dsh-session-bridge · 会话桥" }] }],
+          "usage": { "inputTokens": 120, "outputTokens": 30 }
+        },
+        {
+          "content": [{ "type": "text", "text": "第一行是标题「dsh-session-bridge · 会话桥」。" }],
+          "toolCalls": [],
+          "toolResults": []
+        }
+      ]
+    },
+    {
+      "prompt": "谢谢，顺便看一下 LICENSE 的类型",
+      "steps": [
+        {
+          "content": [{ "type": "text", "text": "是 MIT。" }],
+          "toolCalls": [],
+          "toolResults": []
+        }
+      ]
+    }
+  ]
+}

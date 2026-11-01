@@ -1,0 +1,50 @@
+{
+  "name": "dsh-session-bridge",
+  "version": "0.4.4",
+  "private": true,
+  "description": "Session bridge for DeepSeek Harness: project-grouped session manager (batch export/import, preview, duplicate audit, trash, move between projects) and import from Claude Code, Codex, zcode, opencode, Goose, Zed, Vibe. | 会话桥：按 project 分组的会话管理（批量导入导出 / 预览 / 去重 / 回收站 / 移动归属）+ 多 Agent 来源导入。",
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "session",
+    "export",
+    "import",
+    "backup",
+    "dedupe"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.0-rc <5"
+  }
+}
