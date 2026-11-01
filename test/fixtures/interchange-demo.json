@@ -1,7 +1,7 @@
 {
   "interchange": "dsh-chat-import",
   "version": 1,
-  "meta": { "id": "demo-bridge-interchange", "createdAt": 1767224650000, "cwd": "/Users/chengchaoze/Documents/deepseek-harness/default-workspace" },
+  "meta": { "id": "demo-bridge-interchange", "createdAt": 1767224650000, "cwd": "/tmp/demo-project" },
   "title": "会话桥 · interchange 导入演示",
   "provider": "demo",
   "model": "demo-model",

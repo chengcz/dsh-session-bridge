@@ -362,6 +362,40 @@ try {
 assert.ok(rollbackError && rollbackError.includes('已经有同名会话'), String(rollbackError))
 assert.equal(existsSync(join(home, 'sessions', slugForCwd(newCwd), moveId)), true, 'session must stay put after a refused move')
 
+// ── 10.5 运行中会话的移动：有写锁才允许 ─────────────────────────────────
+const { moveSessionToProject } = await import('../lib/session-move.js')
+const liveCwd = '/tmp/live-target'
+const liveSession = { header: { cwd: newCwd } }
+
+// 没有按 id 串行化的后端 → 拒绝（否则会和 write-behind 抢同一个文件）
+const noLockCtx = {
+  get(name) {
+    if (name === 'sessions') return { get: () => liveSession, flush: async () => true }
+    return ctx.get(name)
+  },
+}
+await assert.rejects(
+  () => moveSessionToProject({ ctx: noLockCtx }, moveId, liveCwd),
+  /不支持安全迁移运行中的会话/,
+)
+
+// 有锁 → 允许，并在内存里把 header 指到新 cwd（会话不销毁、不重启）
+let serializeCalls = 0
+const lockedCtx = {
+  get(name) {
+    if (name === 'sessions') return { get: () => liveSession, flush: async () => true }
+    if (name === 'sessionPersistence') {
+      return { coordinator: { serialize: (_id, operation) => { serializeCalls += 1; return operation() } } }
+    }
+    return ctx.get(name)
+  },
+}
+const liveMoved = await moveSessionToProject({ ctx: lockedCtx }, moveId, liveCwd)
+assert.equal(liveMoved.status, 'moved', JSON.stringify(liveMoved))
+assert.equal(serializeCalls, 1, 'move must run inside the per-id write lock')
+assert.equal(liveSession.header.cwd, liveCwd, 'live session header must follow the move')
+assert.equal(existsSync(join(home, 'sessions', slugForCwd(liveCwd), moveId)), true)
+
 console.log('manage-sim ok:', {
   previewMessages: preview.session.messages,
   exportFiles: files.total,
@@ -378,4 +412,5 @@ console.log('manage-sim ok:', {
   zcode: zcodeImport.status + ' ' + zcodeImport.messages + 'msgs/' + zcodeImport.toolCalls + 'calls',
   moved: moved.status + ' → ' + moved.cwd,
   projects: projects.projects.length,
+  liveMove: liveMoved.status + '+lock',
 })

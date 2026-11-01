@@ -105,13 +105,21 @@ Cursor、Gemini CLI、Crush、Trae、Hermes、TeleAgent、Kimi、Grok。要加�
 Codex 的 `meta.cwd`…），所以会话会直接落在对应的 project 分组里，不会全堆到一个「默认」项目下。
 
 如果归属不对（例如源项目路径已经不存在、或者想把历史归档到别处），在「会话」页点该行的
-**移动**，选一个已有 project 或直接填目标绝对路径。移动做三件事，且保持一致：
+**移动**，选一个已有 project 或直接填目标绝对路径。project 候选优先取自宿主的
+`workspaceRegistry`（含还没落会话的工作区），拿不到时回退为扫描 `$DSH_HOME/sessions` 分组目录。
+
+移动做三件事，且保持一致：
 
 1. 把整个会话目录搬到 `$DSH_HOME/sessions/<新 cwd 的 slug>/<sessionId>/`；
 2. 改写会话文件首行 header 的 `cwd`（压缩的仍按原编码写回，事件本体不重排）；
 3. 同步投影缓存里的 `workingDirectory`（旧行 `seq` 递增），侧栏按新 project 显示。
 
-搬目录失败会原样搬回；目标位置已有同名会话会直接拒绝（不覆盖）。正在使用的会话不允许移动。
+搬目录失败会原样搬回；目标位置已有同名会话会直接拒绝（不覆盖）。目标路径与当前一致时不做任何事。
+
+**运行中的会话**也能移动（与 `dsh-session-manager` 的做法一致）：先把缓冲事件 flush 到旧位置，
+再在持久化的**按 id 写锁**（`sessionPersistence.coordinator.serialize`）里搬文件，最后把内存里
+的 header 指到新 cwd——会话不销毁、不重启，聊天面板不用重新初始化。若运行时没有这把锁，则
+拒绝移动并提示先关闭会话（宁可不动，也不冒「和 write-behind 抢同一文件」的风险）。
 
 > 移动/删除后侧栏可能仍显示旧位置，直到宿主重新加载会话列表（重启 DSH 生效）。
 
@@ -220,7 +228,7 @@ node scripts/client-sim.mjs  # 客户端：四个挂载点都注册、能渲染�
   - 假宿主改为**以磁盘为准**（list 过滤已移走的会话、create 时落盘），否则「删了还在」这类
     结论会被内存假象掩盖。
 - 来源扩展（同轮）：本机真实扫描 Claude Code 200 / Codex 5 / **zcode 5** 个会话；zcode 真实库
-  解析「移除 outcome_extractor…」会话（52 条消息）得到 15 轮、63 次工具调用，耗时 4ms；
+  解析其中一个真实会话（52 条消息）得到 15 轮、63 次工具调用，耗时 4ms；
   用最小 zcode fixture（自建 session/message/part 三表）验证 `preview → 导入 → 二次导入判重`
   全链，导入结果 3 条消息 / 1 次工具调用且工具名可预览；并断言导入后的会话 `cwd` 等于
   zcode 库里的 `session.directory`（落到源项目）。
@@ -258,11 +266,13 @@ node scripts/client-sim.mjs  # 客户端：四个挂载点都注册、能渲染�
   （恰好是 header）。移动会话时若按「解压→改 header→重压」处理，会把后面所有事件写丢。
   现在逐帧解压、全量重压，并在测试里用两帧文件验证事件不丢。
 - project 分组与移动（同轮）：
-  - 本机真实 `$DSH_HOME` 上 `listProjects()` 列出 **14 个 project**（bioagent 370 个会话最多），
+  - 本机真实 `$DSH_HOME` 上 `listProjects()` 列出 **14 个 project**（最大的一个有 370 个会话），
     耗时 8ms；cwd 是从会话 header 读回来的，不是从目录名反推。
   - `moveSession` 端到端：目录从旧 slug 搬到新 slug、header 的 `cwd` 改写后回读校验、事件行数
     不变、投影缓存 `workingDirectory.val` 跟随且 `seq` 递增；目标位置已有同名会话时**拒绝并
     保持原位**（不覆盖）。
+  - 运行中会话的移动：无写锁 → 拒绝（`不支持安全迁移运行中的会话`）；有
+    `coordinator.serialize` → 成功、锁内执行一次、内存 header 的 `cwd` 跟随，文件落在新分组。
 - 像素级渲染仍**未**在真实窗口验证（GUI 需要 `dsh web` 打印的带 token URL，命令行无法取得
   token）；请以重启 DSH 后侧栏是否出现「会话桥」图标为准。
 
