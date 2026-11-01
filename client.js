@@ -48,6 +48,9 @@ window.__ModuleLoader__.load({
         'move.pick': '选这个',
         'move.success': '已移动到 {cwd}',
         'move.cancel': '取消',
+        'move.rowTitle': '移动到另一个 project',
+        'move.current': '当前：{cwd}',
+        'move.pathPlaceholder': '目标 project 的绝对路径',
         'sessions.empty': '没有匹配的会话',
         'sessions.loading': '正在读取会话列表…',
         'sessions.refresh': '刷新',
@@ -173,6 +176,9 @@ window.__ModuleLoader__.load({
         'move.pick': 'Use this',
         'move.success': 'Moved to {cwd}',
         'move.cancel': 'Cancel',
+        'move.rowTitle': 'Move to another project',
+        'move.current': 'Current: {cwd}',
+        'move.pathPlaceholder': 'Absolute path of the target project',
         'sessions.empty': 'No matching session',
         'sessions.loading': 'Loading sessions…',
         'sessions.refresh': 'Refresh',
@@ -1449,6 +1455,169 @@ window.__ModuleLoader__.load({
       h('path', { d: 'M3 11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5' }))
     }
 
+    // 侧栏动作：会话行 hover 时的「移动到另一个 project」。
+    // 不打开管理页，直接在行上弹出目标选择；所有点击都 stopPropagation，
+    // 否则会冒泡到行本身把会话切换掉。
+    function RowMoveButton(props) {
+      useLocaleVersion()
+      const [open, setOpen] = React.useState(false)
+      const [cwd, setCwd] = React.useState('')
+      const [projects, setProjects] = React.useState([])
+      const [busy, setBusy] = React.useState(false)
+      const [note, setNote] = React.useState('')
+
+      const stop = (event) => { if (event && typeof event.stopPropagation === 'function') event.stopPropagation() }
+
+      const openDialog = async (event) => {
+        stop(event)
+        setNote('')
+        setOpen(true)
+        setCwd('')
+        try {
+          const [projectData, listData] = await Promise.all([
+            post('/api-session-bridge/projects'),
+            post('/api-session-bridge/list'),
+          ])
+          setProjects(Array.isArray(projectData.projects) ? projectData.projects : [])
+          const current = (Array.isArray(listData.sessions) ? listData.sessions : [])
+            .find((session) => session.id === props.sessionId)
+          if (current && current.cwd) setCwd(current.cwd)
+        } catch (error) {
+          setNote(String((error && error.message) || error))
+        }
+      }
+
+      const close = (event) => {
+        stop(event)
+        setOpen(false)
+        setNote('')
+      }
+
+      const run = async (event) => {
+        stop(event)
+        const target = cwd.trim()
+        if (!target) return
+        setBusy(true)
+        setNote('')
+        try {
+          await post('/api-session-bridge/session/move', { sessionId: props.sessionId, cwd: target })
+          setNote(translate('move.success', { cwd: target }))
+          setTimeout(() => { setOpen(false); setNote('') }, 900)
+        } catch (error) {
+          setNote(String((error && error.message) || error))
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      const iconStyle = {
+        width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        border: 'none', borderRadius: '6px', background: 'transparent', cursor: 'pointer',
+        color: 'var(--dsw-alias-label-secondary, #5b6570)', fontSize: '13px', lineHeight: 1, padding: 0,
+      }
+
+      return h('span', { style: { display: 'inline-flex' } },
+        h('button', {
+          type: 'button',
+          title: translate('move.rowTitle') + ' · ' + (props.displayTitle || props.sessionId || ''),
+          onClick: openDialog,
+          style: iconStyle,
+        }, '⇥'),
+        open
+          ? h('div', {
+            style: {
+              position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.35)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            },
+            onClick: close,
+          },
+          h('div', {
+            style: {
+              width: 'min(520px, 92vw)', maxHeight: '82vh', overflowY: 'auto', padding: '16px',
+              display: 'flex', flexDirection: 'column', gap: '10px', borderRadius: '14px',
+              background: 'var(--dsw-alias-bg-layer-1, #fff)', color: 'var(--dsw-alias-label-primary, #1f2328)',
+              border: '1px solid var(--dsw-alias-border-l1, #e5e7eb)',
+            },
+            onClick: stop,
+          },
+          h('div', { style: { fontSize: '14px', fontWeight: 600 } }, translate('move.rowTitle')),
+          props.displayTitle
+            ? h('div', { style: { fontSize: '12px', opacity: .7 } }, props.displayTitle)
+            : null,
+          cwd
+            ? h('div', { style: { fontSize: '12px', opacity: .7 } }, translate('move.current', { cwd }))
+            : null,
+          h('input', {
+            style: {
+              height: '32px', padding: '0 10px', borderRadius: '8px', fontSize: '13px',
+              border: '1px solid var(--dsw-alias-border-l1, #e5e7eb)',
+              background: 'var(--dsw-alias-bg-base, #fff)', color: 'inherit',
+            },
+            value: cwd,
+            placeholder: translate('move.pathPlaceholder'),
+            spellCheck: false,
+            onClick: stop,
+            onChange: (event) => setCwd(event.target.value),
+          }),
+          projects.length > 0
+            ? h('div', {
+              style: {
+                display: 'flex', flexDirection: 'column', maxHeight: '240px', overflowY: 'auto',
+                border: '1px solid var(--dsw-alias-border-l1, #e5e7eb)', borderRadius: '10px',
+              },
+            },
+            projects
+              .filter((project) => project.cwd && project.cwd !== cwd)
+              .slice(0, 30)
+              .map((project) => h('div', {
+                key: project.cwd,
+                style: {
+                  display: 'flex', gap: '8px', alignItems: 'center', padding: '8px 10px',
+                  borderBottom: '1px solid var(--dsw-alias-border-l1, #e5e7eb)', fontSize: '12px',
+                },
+              },
+              h('span', {
+                title: project.cwd,
+                style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+              }, shortPath(project.cwd, 52)),
+              h('span', { style: { opacity: .6, fontSize: '11px' } }, String(project.sessions)),
+              h('button', {
+                type: 'button',
+                onClick: (event) => { stop(event); setCwd(project.cwd) },
+                style: {
+                  height: '24px', padding: '0 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px',
+                  border: '1px solid var(--dsw-alias-border-l1, #e5e7eb)',
+                  background: 'var(--dsw-alias-bg-layer-2, #f2f3f5)', color: 'inherit',
+                },
+              }, translate('move.pick')))))
+            : null,
+          note ? h('div', { style: { fontSize: '12px' } }, note) : null,
+          h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+            h('button', {
+              type: 'button',
+              onClick: close,
+              style: {
+                height: '30px', padding: '0 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px',
+                border: '1px solid var(--dsw-alias-border-l1, #e5e7eb)',
+                background: 'var(--dsw-alias-bg-layer-2, #f2f3f5)', color: 'inherit',
+              },
+            }, translate('move.cancel')),
+            h('button', {
+              type: 'button',
+              disabled: busy || !cwd.trim(),
+              onClick: run,
+              style: {
+                height: '30px', padding: '0 14px', borderRadius: '8px', fontSize: '13px',
+                cursor: busy || !cwd.trim() ? 'default' : 'pointer',
+                border: '1px solid var(--dsw-alias-label-primary, #1f2328)',
+                background: 'var(--dsw-alias-label-primary, #1f2328)',
+                color: 'var(--dsw-alias-bg-base, #fff)',
+                opacity: busy || !cwd.trim() ? .55 : 1,
+              },
+            }, busy ? translate('move.busy') : translate('move.action')))))
+        : null)
+    }
+
     // 侧栏动作：会话行 hover 时一键把这条会话导出成 bundle。
     function RowExportButton(props) {
       useLocaleVersion()
@@ -1538,6 +1707,13 @@ window.__ModuleLoader__.load({
         id: 'session-bridge.export',
         order: 300,
       }, RowExportButton))
+
+      // 会话行 hover 的「移动到另一个 project」
+      ctx.slots.inject('sidebar.workspaces.session.row.action', () => ctx.slots.register({
+        name: 'sidebar.workspaces.session.row.action',
+        id: 'session-bridge.move',
+        order: 301,
+      }, RowMoveButton))
     }
 
     return { name: 'dsh-session-bridge', inject: ['slots', 'locale'], apply }

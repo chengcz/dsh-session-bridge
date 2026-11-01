@@ -73,13 +73,14 @@ const ctx = {
 
 plugin.apply(ctx)
 
-const names = slots.map((entry) => entry.slot.name).sort()
+const names = slots.map((entry) => entry.slot.name + '#' + (entry.slot.id || entry.slot.key || '')).sort()
 assert.deepEqual(names, [
-  'main',
-  'settings.section',
-  'sidebar.panellist',
-  'sidebar.workspaces.session.row.action',
-], 'all four UI mount points must be registered: ' + names)
+  'main#session-bridge',
+  'settings.section#session-bridge',
+  'sidebar.panellist#session-bridge',
+  'sidebar.workspaces.session.row.action#session-bridge.export',
+  'sidebar.workspaces.session.row.action#session-bridge.move',
+], 'all UI mount points must be registered: ' + names)
 
 const bySlot = (name) => slots.find((entry) => entry.slot.name === name)
 
@@ -129,8 +130,18 @@ assert.ok(collectText(settings).join(' ').includes('dsb-root'))
 const icon = bySlot('sidebar.panellist').Component({ size: 16 })
 assert.equal(icon.type, 'svg', 'sidebar entry must render an svg icon')
 
-const rowAction = bySlot('sidebar.workspaces.session.row.action').Component({ sessionId: 'demo' })
-assert.equal(rowAction.type, 'button', 'row action must render a button')
+const rowSlots = slots.filter((entry) => entry.slot.name === 'sidebar.workspaces.session.row.action')
+assert.equal(rowSlots.length, 2, 'row actions: export + move')
+const exportSlot = rowSlots.find((entry) => entry.slot.id === 'session-bridge.export')
+assert.equal(exportSlot.Component({ sessionId: 'demo' }).type, 'button', 'export row action renders a button')
+
+// 移动行动作：默认收起，渲染成容纳按钮的 span，且点击会阻止冒泡（否则会切换会话）
+const moveSlot = rowSlots.find((entry) => entry.slot.id === 'session-bridge.move')
+const moveNode = moveSlot.Component({ sessionId: 'demo', displayTitle: 'demo' })
+assert.equal(moveNode.type, 'span')
+const moveButton = moveNode.children.find((child) => child && child.type === 'button')
+assert.ok(moveButton, 'move row action must render a button')
+assert.equal(typeof moveButton.props.onClick, 'function')
 
 // 确认流程不能依赖 window.confirm：宿主环境里它可能被禁用并恒定返回 false，
 // 表现为「点了按钮没反应」——这正是之前「移入回收站 / 全部处理」的症状。

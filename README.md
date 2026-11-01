@@ -40,7 +40,7 @@ bundle、interchange 文档、JSONL，还是由本插件导入生成的会话，
 | 导出会话 | 管理界面「会话」页 / 会话行 hover 的 `↓` / 工具 `session_history_export` / `/history-export` | 默认事件级无损的 `.dshbundle.json`（可原样导回）；也可导出 Markdown 阅读版或原始 JSONL。**批量**：勾选后「导出选中」，或「导出全部已导入」；工具用 `all:true` / `sessionIds:[…]` |
 | 会话预览 | 管理界面「会话」页的「预览」 | 不导出文件就能看消息数、工具调用数、事件数、cwd 与前若干条对话 |
 | 按 project 分组 | 管理界面「会话」页 / 「导入 → 扫描来源」 | 会话按 **cwd（project）** 分组显示，组头带该组数量与「全选」；他源列表也按原 project 分组 |
-| 移动会话归属 | 管理界面「会话」页每行的「移动」 | 把会话挪到另一个 project：分组目录搬迁 + header 的 `cwd` + 投影缓存三处同步，失败自动回滚 |
+| 移动会话归属 | **侧栏会话行 hover 的 `⇥`** / 管理界面「会话」页的「移动」 / 工具 `session_history_move` / 命令行 `scripts/move-session.mjs` | 把会话挪到另一个 project：分组目录搬迁 + header 的 `cwd` + 投影缓存三处同步，失败自动回滚 |
 | 从文件导入 | 管理界面「导入」页 / 工具 `session_history_import` / `/history-import` | 支持 `.dshbundle.json`（本插件与 dsh-chat-import 的备份）、interchange v1 JSON、未压缩的 DSH 会话 JSONL；可先「先预览」再导入。**批量**：路径框一行一个、「选择文件…」可多选，或工具传 `paths:[…]`；逐条判重、逐条报结果 |
 | 从其他 Agent 导入 | 管理界面「导入」→「扫描来源」 | 读本机 **Claude Code、Codex、zcode、opencode、mimocode、kilocode、Goose、Zed、Vibe** 的会话记录，转成可继续的 DSH 会话。**批量**：勾选（可按来源全选）后「导入选中」 |
 | 导出文件浏览 | 管理界面「导出文件」页 | 列出导出目录里的文件（格式、大小、时间），bundle / JSONL 可一键送进导入流程 |
@@ -51,6 +51,9 @@ bundle、interchange 文档、JSONL，还是由本插件导入生成的会话，
 ## 图形管理界面
 
 侧栏面板列表里多了一个「会话桥」图标，点开后是全屏管理页。五个页签：
+
+侧栏的会话行上现在有两个动作：`↓` 一键导出 bundle，`⇥` 移动到另一个 project（点开后在弹层里
+选已有 project 或直接填绝对路径，不用先进管理页）。
 
 - **会话**：按 **project（cwd）分组**显示，组头有该组数量和「全选」；搜索（标题 / id）、筛选
   （全部 / 只看导入的 / 只看非导入的）、全选与勾选、批量导出（格式可选）、批量移入回收站、
@@ -272,6 +275,8 @@ node scripts/client-sim.mjs  # 客户端：四个挂载点都注册、能渲染�
     保持原位**（不覆盖）。
   - 运行中会话的移动：无写锁 → 拒绝（`不支持安全迁移运行中的会话`）；有
     `coordinator.serialize` → 成功、锁内执行一次、内存 header 的 `cwd` 跟随，文件落在新分组。
+  - 侧栏行内动作：`sidebar.workspaces.session.row.action` 现在注册两个 —— `↓` 导出与 `⇥` 移动；
+    弹层内的所有点击都 `stopPropagation`，不会冒泡到行把会话切走（client-sim 断言）。
 - 像素级渲染仍**未**在真实窗口验证（GUI 需要 `dsh web` 打印的带 token URL，命令行无法取得
   token）；请以重启 DSH 后侧栏是否出现「会话桥」图标为准。
 
