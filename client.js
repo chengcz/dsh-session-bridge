@@ -49,6 +49,9 @@ window.__ModuleLoader__.load({
         'move.success': '已移动到 {cwd}',
         'move.cancel': '取消',
         'move.rowTitle': '移动到另一个 project',
+        'move.dragHint': '拖动到左侧的 project 分组上即可移动',
+        'move.dragDone': '已移动',
+        'move.dragFailed': '移动失败',
         'move.current': '当前：{cwd}',
         'move.pathPlaceholder': '目标 project 的绝对路径',
         'sessions.empty': '没有匹配的会话',
@@ -177,6 +180,9 @@ window.__ModuleLoader__.load({
         'move.success': 'Moved to {cwd}',
         'move.cancel': 'Cancel',
         'move.rowTitle': 'Move to another project',
+        'move.dragHint': 'Drag onto a project group on the left to move it',
+        'move.dragDone': 'Moved',
+        'move.dragFailed': 'Move failed',
         'move.current': 'Current: {cwd}',
         'move.pathPlaceholder': 'Absolute path of the target project',
         'sessions.empty': 'No matching session',
@@ -1455,6 +1461,109 @@ window.__ModuleLoader__.load({
       h('path', { d: 'M3 11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5' }))
     }
 
+    // 侧栏动作：会话行 hover 时的「拖到别的 project 分组上」。
+    //
+    // 宿主自己的行拖拽只做「同组内排序」，没有跨组移动，所以这里给行加一个可拖拽手柄：
+    //   dragstart  记下 sessionId（并阻止冒泡，避免触发宿主的行拖拽）
+    //   document   capture 阶段接 dragover/drop，用 [data-row-key="workspace:<id>"] 认目标分组
+    //   drop       拿 workspaceId 换回 cwd（走 /projects），再调 /session/move
+    // 认不出目标分组（例如「未分组」或注册表不可用）就什么都不做，不猜。
+    function RowDragHandle(props) {
+      useLocaleVersion()
+      const [state, setState] = React.useState('idle')
+      const activeRef = React.useRef(null)
+
+      React.useEffect(() => {
+        const rowKeyAt = (event) => {
+          const node = event && event.target
+          if (!node || typeof node.closest !== 'function') return ''
+          const row = node.closest('[data-row-key]')
+          return row ? String(row.getAttribute('data-row-key') || '') : ''
+        }
+
+        const onDragOver = (event) => {
+          if (!activeRef.current) return
+          const key = rowKeyAt(event)
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = key.startsWith('workspace:') ? 'move' : 'none'
+          }
+        }
+
+        const onDrop = async (event) => {
+          const current = activeRef.current
+          if (!current) return
+          activeRef.current = null
+          const key = rowKeyAt(event)
+          if (!key.startsWith('workspace:')) return
+          const workspaceId = key.slice('workspace:'.length)
+          if (!workspaceId) return
+          if (typeof event.preventDefault === 'function') event.preventDefault()
+          if (typeof event.stopPropagation === 'function') event.stopPropagation()
+          setState('busy')
+          try {
+            const data = await post('/api-session-bridge/projects')
+            const project = (Array.isArray(data.projects) ? data.projects : [])
+              .find((item) => item && item.id === workspaceId && item.cwd)
+            if (!project) {
+              setState('idle')
+              return
+            }
+            await post('/api-session-bridge/session/move', {
+              sessionId: current.sessionId,
+              cwd: project.cwd,
+            })
+            setState('done')
+            setTimeout(() => setState('idle'), 1400)
+          } catch {
+            setState('error')
+            setTimeout(() => setState('idle'), 2200)
+          }
+        }
+
+        document.addEventListener('dragover', onDragOver, true)
+        document.addEventListener('drop', onDrop, true)
+        return () => {
+          document.removeEventListener('dragover', onDragOver, true)
+          document.removeEventListener('drop', onDrop, true)
+        }
+      }, [])
+
+      const onDragStart = (event) => {
+        // 阻止冒泡：不触发宿主的「同组内排序」拖拽
+        if (event && typeof event.stopPropagation === 'function') event.stopPropagation()
+        activeRef.current = { sessionId: String(props.sessionId || '') }
+        try {
+          event.dataTransfer.effectAllowed = 'move'
+          event.dataTransfer.setData('application/x-dsh-session-bridge', String(props.sessionId || ''))
+        } catch {
+          // dataTransfer 不可写时不致命：目标识别只依赖 activeRef
+        }
+      }
+
+      const label = state === 'done' ? '✓' : state === 'error' ? '!' : '⠿'
+      const title = state === 'done'
+        ? translate('move.dragDone')
+        : (state === 'error'
+          ? translate('move.dragFailed')
+          : translate('move.dragHint') + ' · ' + (props.displayTitle || props.sessionId || ''))
+      return h('button', {
+        type: 'button',
+        draggable: true,
+        title,
+        onDragStart,
+        onDragEnd: () => { activeRef.current = null },
+        onClick: (event) => { if (event && typeof event.stopPropagation === 'function') event.stopPropagation() },
+        style: {
+          width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          border: 'none', borderRadius: '6px', background: 'transparent', cursor: 'grab', padding: 0,
+          color: state === 'error'
+            ? 'var(--dsw-alias-state-error-primary, #d93838)'
+            : 'var(--dsw-alias-label-tertiary, #8a939c)',
+          fontSize: '12px', lineHeight: 1,
+        },
+      }, label)
+    }
+
     // 侧栏动作：会话行 hover 时的「移动到另一个 project」。
     // 不打开管理页，直接在行上弹出目标选择；所有点击都 stopPropagation，
     // 否则会冒泡到行本身把会话切换掉。
@@ -1714,6 +1823,13 @@ window.__ModuleLoader__.load({
         id: 'session-bridge.move',
         order: 301,
       }, RowMoveButton))
+
+      // 会话行 hover 的拖拽手柄：拖到左侧 project 分组上即移动
+      ctx.slots.inject('sidebar.workspaces.session.row.action', () => ctx.slots.register({
+        name: 'sidebar.workspaces.session.row.action',
+        id: 'session-bridge.drag',
+        order: 302,
+      }, RowDragHandle))
     }
 
     return { name: 'dsh-session-bridge', inject: ['slots', 'locale'], apply }

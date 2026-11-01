@@ -78,6 +78,7 @@ assert.deepEqual(names, [
   'main#session-bridge',
   'settings.section#session-bridge',
   'sidebar.panellist#session-bridge',
+  'sidebar.workspaces.session.row.action#session-bridge.drag',
   'sidebar.workspaces.session.row.action#session-bridge.export',
   'sidebar.workspaces.session.row.action#session-bridge.move',
 ], 'all UI mount points must be registered: ' + names)
@@ -131,7 +132,7 @@ const icon = bySlot('sidebar.panellist').Component({ size: 16 })
 assert.equal(icon.type, 'svg', 'sidebar entry must render an svg icon')
 
 const rowSlots = slots.filter((entry) => entry.slot.name === 'sidebar.workspaces.session.row.action')
-assert.equal(rowSlots.length, 2, 'row actions: export + move')
+assert.equal(rowSlots.length, 3, 'row actions: export + move + drag handle')
 const exportSlot = rowSlots.find((entry) => entry.slot.id === 'session-bridge.export')
 assert.equal(exportSlot.Component({ sessionId: 'demo' }).type, 'button', 'export row action renders a button')
 
