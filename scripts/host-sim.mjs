@@ -65,7 +65,7 @@ function makeHost() {
 const ctx = makeHost()
 const core = new SessionBridgeCore(ctx)
 registerTools(ctx, core)
-assert.deepEqual([...ctx.tools.defs.keys()].sort(), ['session_history_audit', 'session_history_export', 'session_history_import'])
+assert.deepEqual([...ctx.tools.defs.keys()].sort(), ['session_history_audit', 'session_history_export', 'session_history_import', 'session_history_move'])
 
 const importer = ctx.tools.defs.get('session_history_import')
 const exporter = ctx.tools.defs.get('session_history_export')
