@@ -286,6 +286,15 @@ node scripts/client-sim.mjs  # 客户端：四个挂载点都注册、能渲染�
 
 ## License
 
-MIT。`lib/synthesize.js` 的事件合成不变量与字段拼写改编自
-[dsh-chat-import](https://github.com/Nwflower/dsh-chat-import)（MIT）的
-`lib/convert/events.mjs` / `lib/convert/shape.mjs`。
+本项目以 **MIT** 发布，全文见 [LICENSE](LICENSE)。
+
+第三方声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)：
+
+- `lib/synthesize.js` 的事件合成不变量与字段拼写**改编自**
+  [dsh-chat-import](https://github.com/Nwflower/dsh-chat-import)（MIT，Copyright (c) 2026
+  Nwflower, Scarlett）的 `lib/convert/events.mjs` / `lib/convert/shape.mjs`，属衍生作品，
+  遵循同一 MIT 许可；
+- `lib/agent-sources/` 下的 opencode 族 / Goose / Zed 读取器在阅读其对应源码后**独立重写**，
+  同样在那里保留了原许可与版权声明。
+
+其余代码为独立实现；各 Agent 的库结构、数据目录与字段名属于事实性信息。
